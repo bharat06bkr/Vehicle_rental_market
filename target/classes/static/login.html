@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Vehicle Rental Marketplace</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar"></nav>
+
+    <div class="container" style="max-width: 450px; margin-top: 4rem;">
+        <div class="card" style="padding: 2.5rem;">
+            <h2 class="page-title" style="text-align: center; margin-bottom: 0.5rem;">Welcome Back</h2>
+            <p class="page-subtitle" style="text-align: center; margin-bottom: 2rem;">Sign in to your account</p>
+
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" class="form-control" placeholder="user@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" class="form-control" placeholder="••••••••" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; padding: 0.8rem;">Login</button>
+            </form>
+
+            <div style="text-align: center; margin-top: 1.5rem; font-size: 0.9rem; color: var(--text-muted);">
+                Don't have an account? <a href="register.html" style="color: var(--primary-color); font-weight: 600;">Register here</a>
+            </div>
+
+            <!-- Demo Credentials Quick Access Box for Evaluation -->
+            <div style="margin-top: 2rem; padding: 1rem; background: #f1f5f9; border-radius: 8px; font-size: 0.8rem; border-left: 4px solid var(--primary-color);">
+                <strong>🔑 Quick Demo Logins:</strong><br>
+                • <strong>Admin:</strong> admin@vehiclerental.com / admin123<br>
+                • <strong>Owner:</strong> owner@vehiclerental.com / owner123<br>
+                • <strong>Customer:</strong> customer@vehiclerental.com / customer123
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/navbar.js"></script>
+    <script>
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value.trim();
+
+            try {
+                const res = await API.post('/auth/login', { email, password });
+                if (res && res.data && res.data.token) {
+                    showToast('Login successful! Redirecting...', 'success');
+                    Auth.setSession(res.data.token, res.data);
+                    setTimeout(() => Auth.redirectToDashboard(), 1000);
+                }
+            } catch (err) {
+                // Handled in API.js
+            }
+        });
+    </script>
+</body>
+</html>

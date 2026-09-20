@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vehicle Rental Marketplace - Rent Cars & Bikes</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar"></nav>
+
+    <!-- Hero Section -->
+    <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 4rem 1.5rem; text-align: center;">
+        <h1 style="font-size: 2.8rem; font-weight: 800; margin-bottom: 1rem;">Drive Any Car, Anywhere, Anytime</h1>
+        <p style="font-size: 1.2rem; color: #94a3b8; max-width: 650px; margin: 0 auto 2rem auto;">
+            Peer-to-peer vehicle rental platform. Direct listings from verified owners, transparent daily pricing, hassle-free booking.
+        </p>
+
+        <!-- Search Bar -->
+        <div style="background: white; padding: 1.25rem; border-radius: 12px; max-width: 900px; margin: 0 auto; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3); display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) auto; gap: 1rem; text-align: left;">
+            <div>
+                <label style="color: #475569; font-size: 0.8rem; font-weight: 700;">LOCATION</label>
+                <select id="search-location" class="form-control" style="border: none; background: #f8fafc; font-weight:600;">
+                    <option value="">All Locations</option>
+                </select>
+            </div>
+            <div>
+                <label style="color: #475569; font-size: 0.8rem; font-weight: 700;">CATEGORY</label>
+                <select id="search-category" class="form-control" style="border: none; background: #f8fafc; font-weight:600;">
+                    <option value="">All Categories</option>
+                </select>
+            </div>
+            <div>
+                <label style="color: #475569; font-size: 0.8rem; font-weight: 700;">MAX PRICE / DAY</label>
+                <input type="number" id="search-max-price" class="form-control" placeholder="e.g. 5000" style="border: none; background: #f8fafc;">
+            </div>
+            <div style="display: flex; align-items: flex-end;">
+                <button onclick="performSearch()" class="btn btn-primary" style="width: 100%; height: 42px;">Search Vehicles</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Featured Vehicles Section -->
+    <div class="container">
+        <h2 class="page-title" style="margin-top: 2rem;">Available Vehicles for Rent</h2>
+        <p class="page-subtitle">Verified & Admin Approved Vehicles Ready for Instant Booking</p>
+
+        <div id="vehicle-grid" class="grid-3">
+            <div style="grid-column: 1/-1; text-align: center; padding: 3rem; color: var(--text-muted);">
+                Loading available vehicles...
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 Vehicle Rental Marketplace. Built for Java Backend / SDE Demonstration.</p>
+    </footer>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/navbar.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            loadFilters();
+            loadVehicles();
+        });
+
+        async function loadFilters() {
+            try {
+                const [locRes, catRes] = await Promise.all([
+                    API.get('/locations'),
+                    API.get('/categories')
+                ]);
+
+                if (locRes && locRes.data) {
+                    const locSelect = document.getElementById('search-location');
+                    locRes.data.forEach(loc => {
+                        locSelect.innerHTML += `<option value="${loc.id}">${loc.city} (${loc.name})</option>`;
+                    });
+                }
+
+                if (catRes && catRes.data) {
+                    const catSelect = document.getElementById('search-category');
+                    catRes.data.forEach(cat => {
+                        catSelect.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
+                    });
+                }
+            } catch (err) {
+                console.error('Failed to load search filters', err);
+            }
+        }
+
+        async function loadVehicles(locationId = '', categoryId = '', maxPrice = '') {
+            const grid = document.getElementById('vehicle-grid');
+            grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem;">Searching vehicles...</div>';
+
+            let endpoint = '/vehicles?';
+            if (locationId) endpoint += `locationId=${locationId}&`;
+            if (categoryId) endpoint += `categoryId=${categoryId}&`;
+            if (maxPrice) endpoint += `maxPrice=${maxPrice}&`;
+
+            try {
+                const res = await API.get(endpoint);
+                if (res && res.data && res.data.length > 0) {
+                    grid.innerHTML = res.data.map(v => renderVehicleCard(v)).join('');
+                } else {
+                    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 3rem; color: var(--text-muted);">No vehicles match your search criteria.</div>';
+                }
+            } catch (err) {
+                grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--danger-color);">Error loading vehicles.</div>';
+            }
+        }
+
+        function renderVehicleCard(v) {
+            const ratingText = v.averageRating ? `★ ${v.averageRating}/5` : 'New Listing';
+            const defaultImg = 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=600&q=80';
+            const img = v.imageUrl || defaultImg;
+
+            return `
+                <div class="vehicle-card">
+                    <img src="${img}" alt="${v.brand} ${v.model}" class="vehicle-img" onerror="this.src='${defaultImg}'">
+                    <div class="vehicle-body">
+                        <div style="display:flex; justify-between; align-items:center; margin-bottom:0.25rem;">
+                            <span class="status-badge bg-approved">${v.category ? v.category.name : ''}</span>
+                            <span style="font-size:0.85rem; font-weight:700; color:#f59e0b;">${ratingText}</span>
+                        </div>
+                        <h3 class="vehicle-title">${v.brand} ${v.model}</h3>
+                        <div class="vehicle-meta">
+                            <span>📍 ${v.location ? v.location.city : ''}</span>
+                            <span>⛽ ${v.fuelType || 'Petrol'}</span>
+                            <span>⚙️ ${v.transmission || 'Manual'}</span>
+                            <span>👥 ${v.seatingCapacity || 5} Seats</span>
+                        </div>
+                        <div style="display:flex; justify-between; align-items:flex-end; margin-top:auto;">
+                            <div class="vehicle-price">₹${v.pricePerDay} <span style="font-size:0.8rem; font-weight:normal; color:var(--text-muted);">/ day</span></div>
+                            <a href="vehicle-details.html?id=${v.id}" class="btn btn-sm btn-primary">View & Book</a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function performSearch() {
+            const loc = document.getElementById('search-location').value;
+            const cat = document.getElementById('search-category').value;
+            const price = document.getElementById('search-max-price').value;
+            loadVehicles(loc, cat, price);
+        }
+    </script>
+</body>
+</html>

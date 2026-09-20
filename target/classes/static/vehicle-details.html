@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vehicle Details - Vehicle Rental Marketplace</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar"></nav>
+
+    <div class="container">
+        <div id="details-container">
+            <div style="text-align: center; padding: 4rem;">Loading vehicle details...</div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/navbar.js"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const vehicleId = urlParams.get('id');
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (vehicleId) {
+                loadVehicleDetails();
+            } else {
+                window.location.href = 'vehicles.html';
+            }
+        });
+
+        async function loadVehicleDetails() {
+            try {
+                const [vehRes, revRes] = await Promise.all([
+                    API.get(`/vehicles/${vehicleId}`),
+                    API.get(`/vehicles/${vehicleId}/reviews`)
+                ]);
+
+                if (!vehRes || !vehRes.data) {
+                    document.getElementById('details-container').innerHTML = '<h2>Vehicle not found.</h2>';
+                    return;
+                }
+
+                const v = vehRes.data;
+                const reviews = revRes ? revRes.data : [];
+                const defaultImg = 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80';
+                const img = v.imageUrl || defaultImg;
+
+                const ratingHtml = v.averageRating ? `★ ${v.averageRating}/5 (${reviews.length} reviews)` : 'No reviews yet';
+
+                document.getElementById('details-container').innerHTML = `
+                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; margin-top: 1rem;">
+                        <!-- Left Column: Specs & Images -->
+                        <div>
+                            <img src="${img}" style="width: 100%; height: 380px; object-fit: cover; border-radius: 16px; margin-bottom: 1.5rem;" onerror="this.src='${defaultImg}'">
+                            
+                            <div class="card">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.5rem;">
+                                    <h1 class="page-title" style="margin:0;">${v.brand} ${v.model}</h1>
+                                    <span class="status-badge bg-approved">${v.category ? v.category.name : ''}</span>
+                                </div>
+                                <p style="color:#f59e0b; font-weight:700; margin-bottom: 1.5rem;">${ratingHtml}</p>
+
+                                <h3>Vehicle Specifications</h3>
+                                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin: 1rem 0; font-size: 0.95rem;">
+                                    <div><strong>Registration No:</strong> ${v.vehicleNumber}</div>
+                                    <div><strong>Manufacturing Year:</strong> ${v.manufacturingYear || 'N/A'}</div>
+                                    <div><strong>Fuel Type:</strong> ${v.fuelType || 'Petrol'}</div>
+                                    <div><strong>Transmission:</strong> ${v.transmission || 'Manual'}</div>
+                                    <div><strong>Seating Capacity:</strong> ${v.seatingCapacity || 5} Persons</div>
+                                    <div><strong>Location Hub:</strong> ${v.location ? `${v.location.city} (${v.location.name})` : 'N/A'}</div>
+                                </div>
+
+                                <h3 style="margin-top: 1.5rem;">Description</h3>
+                                <p style="color: var(--text-muted); margin-top: 0.5rem;">${v.description || 'No detailed description provided by owner.'}</p>
+                            </div>
+
+                            <!-- Customer Reviews Card -->
+                            <div class="card">
+                                <h3>Customer Reviews (${reviews.length})</h3>
+                                <div style="margin-top: 1rem;">
+                                    ${reviews.length === 0 ? '<p style="color:var(--text-muted);">No reviews posted yet.</p>' : 
+                                        reviews.map(r => `
+                                            <div style="padding: 1rem 0; border-bottom: 1px solid var(--border-color);">
+                                                <div style="display:flex; justify-content:space-between;">
+                                                    <strong>${r.customerName || 'Verified Renter'}</strong>
+                                                    <span style="color:#f59e0b; font-weight:700;">★ ${r.rating}/5</span>
+                                                </div>
+                                                <p style="color:var(--text-muted); margin-top:0.4rem; font-size:0.9rem;">"${r.comment}"</p>
+                                                <span style="font-size:0.75rem; color:#94a3b8;">${new Date(r.createdAt).toLocaleDateString()}</span>
+                                            </div>
+                                        `).join('')
+                                    }
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Booking Widget -->
+                        <div>
+                            <div class="card" style="position: sticky; top: 90px; border-top: 4px solid var(--primary-color);">
+                                <h2 style="font-size: 1.8rem; font-weight: 800; color: var(--primary-color); margin-bottom: 0.5rem;">
+                                    ₹${v.pricePerDay} <span style="font-size: 0.9rem; font-weight: normal; color: var(--text-muted);">/ day</span>
+                                </h2>
+                                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem;">No online payment required. Pay at handover.</p>
+
+                                <a href="booking.html?vehicleId=${v.id}" class="btn btn-primary" style="width: 100%; text-align: center; padding: 0.8rem; font-size: 1rem;">
+                                    Book This Vehicle
+                                </a>
+
+                                <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-color); font-size: 0.85rem; color: var(--text-muted);">
+                                    <strong>👤 Listed by Verified Owner:</strong><br>
+                                    ${v.owner ? v.owner.name : 'Verified Partner'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch (err) {
+                console.error(err);
+            }
+        }
+    </script>
+</body>
+</html>

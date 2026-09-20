@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browse Vehicles - Vehicle Rental Marketplace</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar"></nav>
+
+    <div class="container">
+        <h1 class="page-title">Browse Rental Vehicles</h1>
+        <p class="page-subtitle">Search, filter, and discover available cars and bikes for your journey</p>
+
+        <!-- Search and Filter Bar -->
+        <div class="card" style="margin-bottom: 2rem; padding: 1.25rem;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) auto; gap: 1rem;">
+                <div>
+                    <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted);">LOCATION</label>
+                    <select id="filter-location" class="form-control">
+                        <option value="">All Locations</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted);">CATEGORY</label>
+                    <select id="filter-category" class="form-control">
+                        <option value="">All Categories</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted);">BRAND / MODEL</label>
+                    <input type="text" id="filter-search" class="form-control" placeholder="Search brand or model...">
+                </div>
+                <div style="display:flex; align-items:flex-end;">
+                    <button onclick="applyFilters()" class="btn btn-primary" style="height:42px; width:100%;">Filter</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="vehicle-grid" class="grid-3">
+            <div style="grid-column: 1/-1; text-align: center; padding: 3rem;">Loading vehicles...</div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/navbar.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            loadFilters();
+            loadVehicles();
+        });
+
+        async function loadFilters() {
+            try {
+                const [locRes, catRes] = await Promise.all([
+                    API.get('/locations'),
+                    API.get('/categories')
+                ]);
+
+                if (locRes && locRes.data) {
+                    const locSelect = document.getElementById('filter-location');
+                    locRes.data.forEach(loc => {
+                        locSelect.innerHTML += `<option value="${loc.id}">${loc.city} (${loc.name})</option>`;
+                    });
+                }
+
+                if (catRes && catRes.data) {
+                    const catSelect = document.getElementById('filter-category');
+                    catRes.data.forEach(cat => {
+                        catSelect.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
+                    });
+                }
+            } catch (err) {}
+        }
+
+        async function loadVehicles() {
+            const loc = document.getElementById('filter-location').value;
+            const cat = document.getElementById('filter-category').value;
+            const search = document.getElementById('filter-search').value.trim();
+
+            const grid = document.getElementById('vehicle-grid');
+            grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 2rem;">Loading...</div>';
+
+            let endpoint = '/vehicles?';
+            if (loc) endpoint += `locationId=${loc}&`;
+            if (cat) endpoint += `categoryId=${cat}&`;
+            if (search) endpoint += `search=${encodeURIComponent(search)}&`;
+
+            try {
+                const res = await API.get(endpoint);
+                if (res && res.data && res.data.length > 0) {
+                    grid.innerHTML = res.data.map(v => renderVehicleCard(v)).join('');
+                } else {
+                    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 3rem; color: var(--text-muted);">No vehicles found matching your criteria.</div>';
+                }
+            } catch (err) {}
+        }
+
+        function renderVehicleCard(v) {
+            const ratingText = v.averageRating ? `★ ${v.averageRating}/5` : 'New Listing';
+            const defaultImg = 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=600&q=80';
+            const img = v.imageUrl || defaultImg;
+
+            return `
+                <div class="vehicle-card">
+                    <img src="${img}" alt="${v.brand} ${v.model}" class="vehicle-img" onerror="this.src='${defaultImg}'">
+                    <div class="vehicle-body">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:0.25rem;">
+                            <span class="status-badge bg-approved">${v.category ? v.category.name : ''}</span>
+                            <span style="font-size:0.85rem; font-weight:700; color:#f59e0b;">${ratingText}</span>
+                        </div>
+                        <h3 class="vehicle-title">${v.brand} ${v.model}</h3>
+                        <div class="vehicle-meta">
+                            <span>📍 ${v.location ? v.location.city : ''}</span>
+                            <span>⛽ ${v.fuelType || 'Petrol'}</span>
+                            <span>⚙️ ${v.transmission || 'Manual'}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:auto;">
+                            <div class="vehicle-price">₹${v.pricePerDay} <span style="font-size:0.8rem; font-weight:normal; color:var(--text-muted);">/ day</span></div>
+                            <a href="vehicle-details.html?id=${v.id}" class="btn btn-sm btn-primary">Details & Book</a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function applyFilters() { loadVehicles(); }
+    </script>
+</body>
+</html>

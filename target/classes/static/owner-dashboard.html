@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Owner Dashboard - Vehicle Rental Marketplace</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar"></nav>
+
+    <div class="container">
+        <div style="display:flex; justify-between; align-items:center; margin-bottom: 1.5rem;">
+            <div>
+                <h1 class="page-title">Owner Dashboard</h1>
+                <p class="page-subtitle">Track your vehicle listings, booking requests, active rentals, and earnings</p>
+            </div>
+            <a href="owner-vehicles.html" class="btn btn-primary">➕ Add New Vehicle</a>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div id="stat-vehicles" class="num">0</div>
+                <div class="label">Total Listed Vehicles</div>
+            </div>
+            <div class="stat-card" style="border-left-color: #f59e0b;">
+                <div id="stat-pending-requests" class="num">0</div>
+                <div class="label">Pending Booking Requests</div>
+            </div>
+            <div class="stat-card" style="border-left-color: #3b82f6;">
+                <div id="stat-active-rentals" class="num">0</div>
+                <div class="label">Active On-Road Rentals</div>
+            </div>
+        </div>
+
+        <!-- Quick Links Grid -->
+        <div class="grid-2" style="margin-bottom: 2rem;">
+            <div class="card">
+                <h3>🚗 Vehicle Listings</h3>
+                <p style="color:var(--text-muted); margin-bottom:1rem; font-size:0.9rem;">View approval status, edit details, or resubmit rejected listings.</p>
+                <a href="owner-vehicles.html" class="btn btn-outline">Manage My Vehicles &rarr;</a>
+            </div>
+            <div class="card">
+                <h3>📋 Booking Requests & Handover</h3>
+                <p style="color:var(--text-muted); margin-bottom:1rem; font-size:0.9rem;">Accept/reject requests, record pickup odometer, and finalize returns.</p>
+                <a href="owner-bookings.html" class="btn btn-outline">Manage Bookings & Handover &rarr;</a>
+            </div>
+        </div>
+
+        <!-- Recent Booking Requests Table -->
+        <div class="card">
+            <h3 style="margin-bottom: 1rem; color: var(--secondary-color);">Recent Booking Requests</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Customer</th>
+                            <th>Vehicle</th>
+                            <th>Dates</th>
+                            <th>Total Amount</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="owner-requests-tbody">
+                        <tr><td colspan="7" style="text-align:center;">Loading requests...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/navbar.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (Auth.requireRole('ROLE_OWNER')) {
+                loadOwnerDashboard();
+            }
+        });
+
+        async function loadOwnerDashboard() {
+            try {
+                const [vehRes, bookRes] = await Promise.all([
+                    API.get('/owner/vehicles'),
+                    API.get('/owner/bookings')
+                ]);
+
+                if (vehRes && vehRes.data) {
+                    document.getElementById('stat-vehicles').innerText = vehRes.data.length;
+                }
+
+                if (bookRes && bookRes.data) {
+                    const bookings = bookRes.data;
+                    const pending = bookings.filter(b => b.status === 'PENDING').length;
+                    const active = bookings.filter(b => b.status === 'ACTIVE').length;
+
+                    document.getElementById('stat-pending-requests').innerText = pending;
+                    document.getElementById('stat-active-rentals').innerText = active;
+
+                    const tbody = document.getElementById('owner-requests-tbody');
+                    if (bookings.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No booking requests received yet.</td></tr>';
+                        return;
+                    }
+
+                    tbody.innerHTML = bookings.slice(0, 5).map(b => `
+                        <tr>
+                            <td><strong>#${b.id}</strong></td>
+                            <td>${b.customer ? b.customer.name : 'N/A'} (${b.customer ? b.customer.phone : ''})</td>
+                            <td>${b.vehicle ? `${b.vehicle.brand} ${b.vehicle.model}` : 'N/A'}</td>
+                            <td>${b.pickupDate} to ${b.returnDate}</td>
+                            <td><strong>₹${b.totalAmount}</strong></td>
+                            <td><span class="status-badge bg-${b.status.toLowerCase()}">${b.status}</span></td>
+                            <td>
+                                <a href="owner-bookings.html" class="btn btn-sm btn-outline">Manage</a>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+    </script>
+</body>
+</html>

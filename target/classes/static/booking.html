@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Booking - Vehicle Rental Marketplace</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar"></nav>
+
+    <div class="container" style="max-width: 650px; margin-top: 2rem;">
+        <div class="card" style="padding: 2.5rem;">
+            <h2 class="page-title" style="margin-bottom: 0.5rem;">Reserve Your Vehicle</h2>
+            <p class="page-subtitle" style="margin-bottom: 2rem;">Select your pickup and return dates</p>
+
+            <div id="vehicle-summary" style="padding: 1rem; background: #f1f5f9; border-radius: 8px; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                <div>Loading vehicle info...</div>
+            </div>
+
+            <form id="booking-form">
+                <div class="form-group">
+                    <label>Pickup Location</label>
+                    <select id="pickup-location" class="form-control" required></select>
+                </div>
+                <div class="form-group">
+                    <label>Return Location</label>
+                    <select id="return-location" class="form-control" required></select>
+                </div>
+                <div class="grid-2" style="margin-bottom: 0;">
+                    <div class="form-group">
+                        <label>Pickup Date</label>
+                        <input type="date" id="pickup-date" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Return Date</label>
+                        <input type="date" id="return-date" class="form-control" required>
+                    </div>
+                </div>
+
+                <!-- Price Calculation Summary Box -->
+                <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 1.25rem; margin: 1.5rem 0;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem;">
+                        <span>Price Per Day:</span>
+                        <strong id="price-per-day-text">₹0</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem;">
+                        <span>Total Rental Days:</span>
+                        <strong id="total-days-text">0 Days</strong>
+                    </div>
+                    <hr style="border:none; border-top:1px solid #bfdbfe; margin:0.75rem 0;">
+                    <div style="display:flex; justify-content:space-between; font-size:1.2rem; font-weight:800; color:var(--primary-color);">
+                        <span>Estimated Total Amount:</span>
+                        <span id="total-amount-text">₹0</span>
+                    </div>
+                    <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.4rem; text-align:right;">
+                        * Final price validated and computed securely by backend
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.8rem; font-size: 1rem;">Confirm Booking Request</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/navbar.js"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const vehicleId = urlParams.get('vehicleId');
+        let vehiclePricePerDay = 0;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (Auth.requireRole('ROLE_CUSTOMER')) {
+                if (!vehicleId) {
+                    window.location.href = 'vehicles.html';
+                    return;
+                }
+                initBookingPage();
+            }
+        });
+
+        async function initBookingPage() {
+            // Set min date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('pickup-date').min = today;
+            document.getElementById('return-date').min = today;
+
+            try {
+                const [vehRes, locRes] = await Promise.all([
+                    API.get(`/vehicles/${vehicleId}`),
+                    API.get('/locations')
+                ]);
+
+                if (vehRes && vehRes.data) {
+                    const v = vehRes.data;
+                    vehiclePricePerDay = parseFloat(v.pricePerDay);
+                    document.getElementById('vehicle-summary').innerHTML = `
+                        <div>
+                            <strong style="font-size:1.1rem; color:var(--secondary-color);">${v.brand} ${v.model}</strong><br>
+                            <span style="font-size:0.85rem; color:var(--text-muted);">📍 Location: ${v.location ? v.location.city : ''}</span>
+                        </div>
+                        <div style="font-weight:800; font-size:1.2rem; color:var(--primary-color);">
+                            ₹${v.pricePerDay}/day
+                        </div>
+                    `;
+                    document.getElementById('price-per-day-text').innerText = `₹${vehiclePricePerDay}`;
+                }
+
+                if (locRes && locRes.data) {
+                    const pickupSelect = document.getElementById('pickup-location');
+                    const returnSelect = document.getElementById('return-location');
+                    locRes.data.forEach(loc => {
+                        pickupSelect.innerHTML += `<option value="${loc.id}">${loc.city} - ${loc.name}</option>`;
+                        returnSelect.innerHTML += `<option value="${loc.id}">${loc.city} - ${loc.name}</option>`;
+                    });
+                }
+            } catch (err) {}
+
+            document.getElementById('pickup-date').addEventListener('change', calculatePrice);
+            document.getElementById('return-date').addEventListener('change', calculatePrice);
+        }
+
+        function calculatePrice() {
+            const pDateVal = document.getElementById('pickup-date').value;
+            const rDateVal = document.getElementById('return-date').value;
+
+            if (pDateVal && rDateVal) {
+                const pDate = new Date(pDateVal);
+                const rDate = new Date(rDateVal);
+
+                if (rDate >= pDate) {
+                    const diffTime = Math.abs(rDate - pDate);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    const totalDays = Math.max(1, diffDays);
+                    const totalAmount = totalDays * vehiclePricePerDay;
+
+                    document.getElementById('total-days-text').innerText = `${totalDays} Day(s)`;
+                    document.getElementById('total-amount-text').innerText = `₹${totalAmount}`;
+                } else {
+                    document.getElementById('total-days-text').innerText = `Invalid dates`;
+                    document.getElementById('total-amount-text').innerText = `₹0`;
+                }
+            }
+        }
+
+        document.getElementById('booking-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const pickupLocationId = document.getElementById('pickup-location').value;
+            const returnLocationId = document.getElementById('return-location').value;
+            const pickupDate = document.getElementById('pickup-date').value;
+            const returnDate = document.getElementById('return-date').value;
+
+            try {
+                const res = await API.post('/customer/bookings', {
+                    vehicleId: parseInt(vehicleId),
+                    pickupLocationId: parseInt(pickupLocationId),
+                    returnLocationId: parseInt(returnLocationId),
+                    pickupDate,
+                    returnDate
+                });
+
+                if (res && res.success) {
+                    showToast('Booking request submitted! Owner will review.', 'success');
+                    setTimeout(() => window.location.href = 'my-bookings.html', 1500);
+                }
+            } catch (err) {}
+        });
+    </script>
+</body>
+</html>

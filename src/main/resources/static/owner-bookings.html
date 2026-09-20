@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Requests & Handover - Owner Panel</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar"></nav>
+
+    <div class="container">
+        <h1 class="page-title">Booking Requests & Vehicle Handover</h1>
+        <p class="page-subtitle">Approve requests, record pickup odometer readings, and log returns</p>
+
+        <div class="table-container card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Customer</th>
+                        <th>Vehicle</th>
+                        <th>Rental Period</th>
+                        <th>Total Amount</th>
+                        <th>Status</th>
+                        <th>Actions / Inspection</th>
+                    </tr>
+                </thead>
+                <tbody id="owner-bookings-tbody">
+                    <tr><td colspan="7" style="text-align:center;">Loading booking requests...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Pickup Handover Modal -->
+    <div id="pickup-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Record Pickup Handover</h3>
+                <button onclick="closePickupModal()" class="close-btn">&times;</button>
+            </div>
+            <form id="pickup-form">
+                <input type="hidden" id="pickup-booking-id">
+                <div class="form-group">
+                    <label>Pickup Odometer Reading (km)</label>
+                    <input type="number" step="0.1" id="pickup-odometer" class="form-control" placeholder="e.g. 15420.5" required min="0">
+                </div>
+                <div class="form-group">
+                    <label>Pickup Fuel Level</label>
+                    <select id="pickup-fuel" class="form-control">
+                        <option value="100% Full">100% Full Tank</option>
+                        <option value="75% Three Quarters">75% (3/4 Tank)</option>
+                        <option value="50% Half">50% (Half Tank)</option>
+                        <option value="25% Quarter">25% (Reserve)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Pickup Notes / Existing Scratches</label>
+                    <textarea id="pickup-notes" class="form-control" rows="3" placeholder="Minor scratch on rear bumper..."></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;">Mark Rented & Handover Vehicle</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Return Inspection Modal -->
+    <div id="return-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Record Vehicle Return Inspection</h3>
+                <button onclick="closeReturnModal()" class="close-btn">&times;</button>
+            </div>
+            <form id="return-form">
+                <input type="hidden" id="return-booking-id">
+                <div class="form-group">
+                    <label>Return Odometer Reading (km)</label>
+                    <input type="number" step="0.1" id="return-odometer" class="form-control" placeholder="e.g. 15850.0" required min="0">
+                </div>
+                <div class="form-group">
+                    <label>Return Fuel Level</label>
+                    <select id="return-fuel" class="form-control">
+                        <option value="100% Full">100% Full Tank</option>
+                        <option value="75% Three Quarters">75% (3/4 Tank)</option>
+                        <option value="50% Half">50% (Half Tank)</option>
+                        <option value="25% Quarter">25% (Reserve)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Return Notes</label>
+                    <textarea id="return-notes" class="form-control" rows="2" placeholder="Vehicle returned clean..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>New Damage Notes (If any)</label>
+                    <textarea id="damage-notes" class="form-control" rows="2" placeholder="No new damages detected..."></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;">Complete Booking & Free Vehicle</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/navbar.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (Auth.requireRole('ROLE_OWNER')) {
+                loadOwnerBookings();
+            }
+        });
+
+        async function loadOwnerBookings() {
+            const tbody = document.getElementById('owner-bookings-tbody');
+            try {
+                const res = await API.get('/owner/bookings');
+                if (res && res.data && res.data.length > 0) {
+                    tbody.innerHTML = res.data.map(b => renderOwnerBookingRow(b)).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No booking requests found.</td></tr>';
+                }
+            } catch (err) {}
+        }
+
+        function renderOwnerBookingRow(b) {
+            const c = b.customer || {};
+            const v = b.vehicle || {};
+            const insp = b.inspection;
+
+            let actionsHtml = '';
+            if (b.status === 'PENDING') {
+                actionsHtml = `
+                    <button onclick="acceptBooking(${b.id})" class="btn btn-sm btn-success">Accept</button>
+                    <button onclick="rejectBooking(${b.id})" class="btn btn-sm btn-danger">Reject</button>
+                `;
+            } else if (b.status === 'CONFIRMED') {
+                actionsHtml = `<button onclick="openPickupModal(${b.id})" class="btn btn-sm btn-primary">🚗 Handover (Pickup)</button>`;
+            } else if (b.status === 'ACTIVE') {
+                actionsHtml = `<button onclick="openReturnModal(${b.id})" class="btn btn-sm btn-success">🏁 Record Return</button>`;
+            } else if (b.status === 'COMPLETED' && insp) {
+                actionsHtml = `<span style="font-size:0.8rem; color:var(--text-muted);">Odometer: ${insp.pickupOdometer || ''} → ${insp.returnOdometer || ''} km</span>`;
+            } else {
+                actionsHtml = `<span style="font-size:0.85rem; color:var(--text-muted);">-</span>`;
+            }
+
+            return `
+                <tr>
+                    <td><strong>#${b.id}</strong></td>
+                    <td>
+                        <strong>${c.name || 'Customer'}</strong><br>
+                        <span style="font-size:0.8rem; color:var(--text-muted);">📞 ${c.phone || 'N/A'}</span>
+                    </td>
+                    <td>${v.brand || ''} ${v.model || ''} (${v.vehicleNumber || ''})</td>
+                    <td>${b.pickupDate} to ${b.returnDate} (${b.totalDays} Days)</td>
+                    <td><strong>₹${b.totalAmount}</strong></td>
+                    <td><span class="status-badge bg-${b.status.toLowerCase()}">${b.status}</span></td>
+                    <td>${actionsHtml}</td>
+                </tr>
+            `;
+        }
+
+        async function acceptBooking(id) {
+            try {
+                const res = await API.put(`/owner/bookings/${id}/accept`);
+                if (res && res.success) {
+                    showToast('Booking accepted!', 'success');
+                    loadOwnerBookings();
+                }
+            } catch (err) {}
+        }
+
+        async function rejectBooking(id) {
+            if (!confirm('Reject this booking request?')) return;
+            try {
+                const res = await API.put(`/owner/bookings/${id}/reject`);
+                if (res && res.success) {
+                    showToast('Booking rejected', 'info');
+                    loadOwnerBookings();
+                }
+            } catch (err) {}
+        }
+
+        function openPickupModal(id) {
+            document.getElementById('pickup-booking-id').value = id;
+            document.getElementById('pickup-modal').classList.add('active');
+        }
+        function closePickupModal() { document.getElementById('pickup-modal').classList.remove('active'); }
+
+        function openReturnModal(id) {
+            document.getElementById('return-booking-id').value = id;
+            document.getElementById('return-modal').classList.add('active');
+        }
+        function closeReturnModal() { document.getElementById('return-modal').classList.remove('active'); }
+
+        document.getElementById('pickup-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('pickup-booking-id').value;
+            const pickupOdometer = parseFloat(document.getElementById('pickup-odometer').value);
+            const pickupFuelLevel = document.getElementById('pickup-fuel').value;
+            const pickupNotes = document.getElementById('pickup-notes').value.trim();
+
+            try {
+                const res = await API.post(`/owner/bookings/${id}/pickup`, { pickupOdometer, pickupFuelLevel, pickupNotes });
+                if (res && res.success) {
+                    showToast('Vehicle pickup logged. Booking is now ACTIVE.', 'success');
+                    closePickupModal();
+                    loadOwnerBookings();
+                }
+            } catch (err) {}
+        });
+
+        document.getElementById('return-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('return-booking-id').value;
+            const returnOdometer = parseFloat(document.getElementById('return-odometer').value);
+            const returnFuelLevel = document.getElementById('return-fuel').value;
+            const returnNotes = document.getElementById('return-notes').value.trim();
+            const damageNotes = document.getElementById('damage-notes').value.trim();
+
+            try {
+                const res = await API.post(`/owner/bookings/${id}/return`, { returnOdometer, returnFuelLevel, returnNotes, damageNotes });
+                if (res && res.success) {
+                    showToast('Vehicle return completed! Booking is now COMPLETED.', 'success');
+                    closeReturnModal();
+                    loadOwnerBookings();
+                }
+            } catch (err) {}
+        });
+    </script>
+</body>
+</html>

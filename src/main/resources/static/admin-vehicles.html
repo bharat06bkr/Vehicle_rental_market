@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vehicle Approvals - Admin Panel</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar"></nav>
+
+    <div class="container">
+        <h1 class="page-title">Pending Vehicle Approvals</h1>
+        <p class="page-subtitle">Inspect submitted vehicles and verify compliance before making visible to customers</p>
+
+        <div class="table-container card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Owner</th>
+                        <th>Vehicle Details</th>
+                        <th>Number Plate</th>
+                        <th>Location</th>
+                        <th>Price/Day</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="pending-vehicles-tbody">
+                    <tr><td colspan="7" style="text-align:center;">Loading pending vehicles...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Rejection Modal -->
+    <div id="reject-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Reject Vehicle Listing</h3>
+                <button onclick="closeRejectModal()" class="close-btn">&times;</button>
+            </div>
+            <form id="reject-form">
+                <input type="hidden" id="reject-vehicle-id">
+                <div class="form-group">
+                    <label>Reason for Rejection</label>
+                    <textarea id="rejection-reason" class="form-control" rows="4" placeholder="e.g. Invalid registration documents provided or price out of market bounds..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-danger" style="width:100%;">Confirm Rejection</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/navbar.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (Auth.requireRole('ROLE_ADMIN')) {
+                loadPendingVehicles();
+            }
+        });
+
+        async function loadPendingVehicles() {
+            const tbody = document.getElementById('pending-vehicles-tbody');
+            try {
+                const res = await API.get('/admin/vehicles/pending');
+                if (res && res.data && res.data.length > 0) {
+                    tbody.innerHTML = res.data.map(v => `
+                        <tr>
+                            <td><strong>#${v.id}</strong></td>
+                            <td>${v.owner ? v.owner.name : 'N/A'}<br><span style="font-size:0.8rem; color:var(--text-muted);">${v.owner ? v.owner.email : ''}</span></td>
+                            <td>
+                                <strong>${v.brand} ${v.model}</strong> (${v.manufacturingYear || ''})<br>
+                                <span style="font-size:0.8rem; color:var(--text-muted);">${v.category ? v.category.name : ''} | ${v.fuelType} | ${v.transmission}</span>
+                            </td>
+                            <td><strong>${v.vehicleNumber}</strong></td>
+                            <td>${v.location ? v.location.city : ''}</td>
+                            <td>₹${v.pricePerDay}</td>
+                            <td>
+                                <button onclick="approveVehicle(${v.id})" class="btn btn-sm btn-success">✓ Approve</button>
+                                <button onclick="openRejectModal(${v.id})" class="btn btn-sm btn-danger">✗ Reject</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No vehicles pending Admin approval! 🎉</td></tr>';
+                }
+            } catch (err) {}
+        }
+
+        async function approveVehicle(id) {
+            try {
+                const res = await API.put(`/admin/vehicles/${id}/approve`);
+                if (res && res.success) {
+                    showToast('Vehicle APPROVED! Now available for public booking.', 'success');
+                    loadPendingVehicles();
+                }
+            } catch (err) {}
+        }
+
+        function openRejectModal(id) {
+            document.getElementById('reject-vehicle-id').value = id;
+            document.getElementById('reject-modal').classList.add('active');
+        }
+        function closeRejectModal() { document.getElementById('reject-modal').classList.remove('active'); }
+
+        document.getElementById('reject-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('reject-vehicle-id').value;
+            const rejectionReason = document.getElementById('rejection-reason').value.trim();
+
+            try {
+                const res = await API.put(`/admin/vehicles/${id}/reject`, { status: 'REJECTED', rejectionReason });
+                if (res && res.success) {
+                    showToast('Vehicle listing rejected.', 'info');
+                    closeRejectModal();
+                    loadPendingVehicles();
+                }
+            } catch (err) {}
+        });
+    </script>
+</body>
+</html>

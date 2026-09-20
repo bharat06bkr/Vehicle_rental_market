@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Vehicle Rental Marketplace</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar"></nav>
+
+    <div class="container" style="max-width: 500px; margin-top: 3rem;">
+        <div class="card" style="padding: 2.5rem;">
+            <h2 class="page-title" style="text-align: center; margin-bottom: 0.5rem;">Create Account</h2>
+            <p class="page-subtitle" style="text-align: center; margin-bottom: 2rem;">Join as a Customer or Vehicle Owner</p>
+
+            <form id="register-form">
+                <div class="form-group">
+                    <label for="name">Full Name</label>
+                    <input type="text" id="name" class="form-control" placeholder="John Doe" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" class="form-control" placeholder="john@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label for="phone">Phone Number</label>
+                    <input type="tel" id="phone" class="form-control" placeholder="9876543210" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" class="form-control" placeholder="At least 6 characters" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label for="role">Register As</label>
+                    <select id="role" class="form-control" required>
+                        <option value="ROLE_CUSTOMER">Customer (Rent vehicles)</option>
+                        <option value="ROLE_OWNER">Vehicle Owner (List my cars/bikes)</option>
+                    </select>
+                </div>
+
+                <div id="owner-notice" style="display: none; margin-bottom: 1rem; padding: 0.75rem; background: #fffbeb; border-left: 4px solid #f59e0b; font-size: 0.85rem; color: #92400e;">
+                    ℹ️ <strong>Note for Owners:</strong> Owner accounts require verification & approval from Admin before you can log in and list vehicles.
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem; padding: 0.8rem;">Register</button>
+            </form>
+
+            <div style="text-align: center; margin-top: 1.5rem; font-size: 0.9rem; color: var(--text-muted);">
+                Already have an account? <a href="login.html" style="color: var(--primary-color); font-weight: 600;">Login here</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/navbar.js"></script>
+    <script>
+        document.getElementById('role').addEventListener('change', (e) => {
+            const notice = document.getElementById('owner-notice');
+            notice.style.display = (e.target.value === 'ROLE_OWNER') ? 'block' : 'none';
+        });
+
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const role = document.getElementById('role').value;
+
+            try {
+                const res = await API.post('/auth/register', { name, email, phone, password, role });
+                if (res && res.success) {
+                    showToast(res.message, 'success');
+                    setTimeout(() => window.location.href = 'login.html', 2000);
+                }
+            } catch (err) {
+                // Error shown in toast
+            }
+        });
+    </script>
+</body>
+</html>

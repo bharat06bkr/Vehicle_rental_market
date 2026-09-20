@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Approvals & Access - Admin Panel</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar"></nav>
+
+    <div class="container">
+        <h1 class="page-title">User Approvals & Management</h1>
+        <p class="page-subtitle">Verify vehicle owner registrations, inspect accounts, and control platform access</p>
+
+        <div class="card" style="margin-bottom: 1.5rem; padding: 1rem;">
+            <div style="display:flex; gap:1rem;">
+                <button onclick="filterUsers('ALL')" class="btn btn-sm btn-outline active">All Users</button>
+                <button onclick="filterUsers('OWNER')" class="btn btn-sm btn-outline">Vehicle Owners</button>
+                <button onclick="filterUsers('CUSTOMER')" class="btn btn-sm btn-outline">Customers</button>
+            </div>
+        </div>
+
+        <div class="table-container card">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Admin Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="users-tbody">
+                    <tr><td colspan="7" style="text-align:center;">Loading user records...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/navbar.js"></script>
+    <script>
+        let currentFilter = 'ALL';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (Auth.requireRole('ROLE_ADMIN')) {
+                loadUsers();
+            }
+        });
+
+        async function loadUsers() {
+            const tbody = document.getElementById('users-tbody');
+            let endpoint = '/admin/users';
+            if (currentFilter === 'OWNER') endpoint = '/admin/owners';
+            if (currentFilter === 'CUSTOMER') endpoint = '/admin/customers';
+
+            try {
+                const res = await API.get(endpoint);
+                if (res && res.data && res.data.length > 0) {
+                    tbody.innerHTML = res.data.map(u => renderUserRow(u)).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No user records found.</td></tr>';
+                }
+            } catch (err) {}
+        }
+
+        function renderUserRow(u) {
+            const roleClean = u.role.replace('ROLE_', '');
+            
+            let actionsHtml = '-';
+            if (u.role === 'ROLE_OWNER') {
+                if (u.status === 'PENDING') {
+                    actionsHtml = `
+                        <button onclick="updateOwnerStatus(${u.id}, 'APPROVED')" class="btn btn-sm btn-success">✓ Approve Owner</button>
+                        <button onclick="updateOwnerStatus(${u.id}, 'REJECTED')" class="btn btn-sm btn-danger">✗ Reject</button>
+                    `;
+                } else if (u.status === 'APPROVED') {
+                    actionsHtml = `<button onclick="updateOwnerStatus(${u.id}, 'SUSPENDED')" class="btn btn-sm btn-danger">Suspend</button>`;
+                } else if (u.status === 'SUSPENDED' || u.status === 'REJECTED') {
+                    actionsHtml = `<button onclick="updateOwnerStatus(${u.id}, 'APPROVED')" class="btn btn-sm btn-success">Re-Approve</button>`;
+                }
+            }
+
+            return `
+                <tr>
+                    <td><strong>#${u.id}</strong></td>
+                    <td><strong>${u.name}</strong></td>
+                    <td>${u.email}</td>
+                    <td>${u.phone || 'N/A'}</td>
+                    <td><span class="badge-role" style="background:#e2e8f0; color:#334155;">${roleClean}</span></td>
+                    <td><span class="status-badge bg-${u.status.toLowerCase()}">${u.status}</span></td>
+                    <td>${actionsHtml}</td>
+                </tr>
+            `;
+        }
+
+        async function updateOwnerStatus(ownerId, status) {
+            try {
+                const res = await API.put(`/admin/owners/${ownerId}/status`, { status });
+                if (res && res.success) {
+                    showToast(`Owner status updated to ${status}`, 'success');
+                    loadUsers();
+                }
+            } catch (err) {}
+        }
+
+        function filterUsers(filter) {
+            currentFilter = filter;
+            loadUsers();
+        }
+    </script>
+</body>
+</html>

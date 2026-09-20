@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Dashboard - Vehicle Rental Marketplace</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar"></nav>
+
+    <div class="container">
+        <div style="display:flex; justify-between; align-items:center; margin-bottom: 1.5rem;">
+            <div>
+                <h1 class="page-title">Customer Dashboard</h1>
+                <p class="page-subtitle">Manage your rentals, view upcoming trips, and search vehicles</p>
+            </div>
+            <a href="vehicles.html" class="btn btn-primary">➕ Book a Vehicle</a>
+        </div>
+
+        <!-- Quick Summary Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div id="stat-active" class="num">0</div>
+                <div class="label">Current Active Rental</div>
+            </div>
+            <div class="stat-card" style="border-left-color: #f59e0b;">
+                <div id="stat-pending" class="num">0</div>
+                <div class="label">Pending Requests</div>
+            </div>
+            <div class="stat-card" style="border-left-color: #10b981;">
+                <div id="stat-completed" class="num">0</div>
+                <div class="label">Completed Trips</div>
+            </div>
+        </div>
+
+        <!-- Recent Bookings Table -->
+        <div class="card">
+            <h3 style="margin-bottom: 1rem; color: var(--secondary-color);">My Recent Bookings</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Vehicle</th>
+                            <th>Pickup Location</th>
+                            <th>Pickup Date</th>
+                            <th>Return Date</th>
+                            <th>Total Days</th>
+                            <th>Total Price</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bookings-tbody">
+                        <tr><td colspan="9" style="text-align:center;">Loading your bookings...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/navbar.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (Auth.requireRole('ROLE_CUSTOMER')) {
+                loadCustomerBookings();
+            }
+        });
+
+        async function loadCustomerBookings() {
+            try {
+                const res = await API.get('/customer/bookings');
+                if (res && res.data) {
+                    const bookings = res.data;
+                    updateStats(bookings);
+
+                    const tbody = document.getElementById('bookings-tbody');
+                    if (bookings.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No bookings found. <a href="vehicles.html">Find a vehicle to rent!</a></td></tr>';
+                        return;
+                    }
+
+                    tbody.innerHTML = bookings.map(b => `
+                        <tr>
+                            <td><strong>#${b.id}</strong></td>
+                            <td>${b.vehicle ? `${b.vehicle.brand} ${b.vehicle.model}` : 'N/A'}</td>
+                            <td>${b.pickupLocation ? b.pickupLocation.city : 'N/A'}</td>
+                            <td>${b.pickupDate}</td>
+                            <td>${b.returnDate}</td>
+                            <td>${b.totalDays} days</td>
+                            <td><strong>₹${b.totalAmount}</strong></td>
+                            <td><span class="status-badge bg-${b.status.toLowerCase()}">${b.status}</span></td>
+                            <td>
+                                ${(b.status === 'PENDING' || b.status === 'CONFIRMED') ? 
+                                    `<button onclick="cancelBooking(${b.id})" class="btn btn-sm btn-danger">Cancel</button>` : 
+                                    `<a href="my-bookings.html" class="btn btn-sm btn-outline">Details</a>`
+                                }
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function updateStats(bookings) {
+            const active = bookings.filter(b => b.status === 'ACTIVE').length;
+            const pending = bookings.filter(b => b.status === 'PENDING' || b.status === 'CONFIRMED').length;
+            const completed = bookings.filter(b => b.status === 'COMPLETED').length;
+
+            document.getElementById('stat-active').innerText = active;
+            document.getElementById('stat-pending').innerText = pending;
+            document.getElementById('stat-completed').innerText = completed;
+        }
+
+        async function cancelBooking(id) {
+            if (!confirm('Are you sure you want to cancel this booking?')) return;
+            try {
+                const res = await API.put(`/customer/bookings/${id}/cancel`);
+                if (res && res.success) {
+                    showToast('Booking cancelled successfully', 'success');
+                    loadCustomerBookings();
+                }
+            } catch (err) {}
+        }
+    </script>
+</body>
+</html>

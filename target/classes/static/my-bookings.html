@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Bookings - Vehicle Rental Marketplace</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar"></nav>
+
+    <div class="container">
+        <h1 class="page-title">My Rental Bookings</h1>
+        <p class="page-subtitle">Track your past, active, and upcoming vehicle rentals</p>
+
+        <div id="bookings-list" class="grid-2">
+            <div style="grid-column: 1/-1; text-align: center; padding: 3rem;">Loading your bookings...</div>
+        </div>
+    </div>
+
+    <!-- Review Modal -->
+    <div id="review-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Submit Rental Review</h3>
+                <button onclick="closeReviewModal()" class="close-btn">&times;</button>
+            </div>
+            <form id="review-form">
+                <input type="hidden" id="review-booking-id">
+                <div class="form-group">
+                    <label>Rating (1 to 5 Stars)</label>
+                    <select id="review-rating" class="form-control" required>
+                        <option value="5">★★★★★ 5 - Excellent</option>
+                        <option value="4">★★★★☆ 4 - Good</option>
+                        <option value="3">★★★☆☆ 3 - Average</option>
+                        <option value="2">★★☆☆☆ 2 - Poor</option>
+                        <option value="1">★☆☆☆☆ 1 - Terrible</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Your Review Comment</label>
+                    <textarea id="review-comment" class="form-control" rows="4" placeholder="Describe vehicle condition, cleanliness, and overall experience..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Post Review</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/navbar.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (Auth.requireRole('ROLE_CUSTOMER')) {
+                loadBookings();
+            }
+        });
+
+        async function loadBookings() {
+            const list = document.getElementById('bookings-list');
+            try {
+                const res = await API.get('/customer/bookings');
+                if (res && res.data && res.data.length > 0) {
+                    list.innerHTML = res.data.map(b => renderBookingCard(b)).join('');
+                } else {
+                    list.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 3rem; color: var(--text-muted);">You have no rental bookings yet. <a href="vehicles.html">Rent a vehicle now!</a></div>';
+                }
+            } catch (err) {}
+        }
+
+        function renderBookingCard(b) {
+            const v = b.vehicle || {};
+            const insp = b.inspection;
+
+            let inspectionHtml = '';
+            if (insp) {
+                inspectionHtml = `
+                    <div style="background:#f8fafc; padding:0.75rem; border-radius:6px; margin-top:0.75rem; font-size:0.85rem;">
+                        <strong>🔍 Handover & Return Details:</strong><br>
+                        ${insp.pickupOdometer ? `• Pickup Odometer: ${insp.pickupOdometer} km | Fuel: ${insp.pickupFuelLevel || 'N/A'}<br>` : ''}
+                        ${insp.returnOdometer ? `• Return Odometer: ${insp.returnOdometer} km | Fuel: ${insp.returnFuelLevel || 'N/A'}<br>` : ''}
+                        ${insp.damageNotes ? `<span style="color:red;">• Damage Notes: ${insp.damageNotes}</span>` : ''}
+                    </div>
+                `;
+            }
+
+            let actionBtn = '';
+            if (b.status === 'PENDING' || b.status === 'CONFIRMED') {
+                actionBtn = `<button onclick="cancelBooking(${b.id})" class="btn btn-sm btn-danger">Cancel Booking</button>`;
+            } else if (b.status === 'COMPLETED') {
+                actionBtn = `<button onclick="openReviewModal(${b.id})" class="btn btn-sm btn-success">⭐ Leave Review</button>`;
+            }
+
+            return `
+                <div class="card" style="margin-bottom:0;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                        <span style="font-weight:700; color:var(--text-muted);">Booking #${b.id}</span>
+                        <span class="status-badge bg-${b.status.toLowerCase()}">${b.status}</span>
+                    </div>
+                    <h3 style="margin-bottom:0.4rem; color:var(--secondary-color);">${v.brand || ''} ${v.model || 'Vehicle'}</h3>
+                    <div style="font-size:0.9rem; color:var(--text-muted); margin-bottom:0.75rem;">
+                        📍 Pickup: ${b.pickupLocation ? b.pickupLocation.city : ''} &nbsp;|&nbsp; Return: ${b.returnLocation ? b.returnLocation.city : ''}<br>
+                        📅 ${b.pickupDate} to ${b.returnDate} (${b.totalDays} Days)
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:1rem; padding-top:0.75rem; border-top:1px solid var(--border-color);">
+                        <span style="font-size:1.2rem; font-weight:800; color:var(--primary-color);">Total: ₹${b.totalAmount}</span>
+                        ${actionBtn}
+                    </div>
+                    ${inspectionHtml}
+                </div>
+            `;
+        }
+
+        async function cancelBooking(id) {
+            if (!confirm('Are you sure you want to cancel this booking?')) return;
+            try {
+                const res = await API.put(`/customer/bookings/${id}/cancel`);
+                if (res && res.success) {
+                    showToast('Booking cancelled', 'success');
+                    loadBookings();
+                }
+            } catch (err) {}
+        }
+
+        function openReviewModal(bookingId) {
+            document.getElementById('review-booking-id').value = bookingId;
+            document.getElementById('review-modal').classList.add('active');
+        }
+
+        function closeReviewModal() {
+            document.getElementById('review-modal').classList.remove('active');
+        }
+
+        document.getElementById('review-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const bookingId = parseInt(document.getElementById('review-booking-id').value);
+            const rating = parseInt(document.getElementById('review-rating').value);
+            const comment = document.getElementById('review-comment').value.trim();
+
+            try {
+                const res = await API.post('/customer/reviews', { bookingId, rating, comment });
+                if (res && res.success) {
+                    showToast('Thank you for your review!', 'success');
+                    closeReviewModal();
+                    loadBookings();
+                }
+            } catch (err) {}
+        });
+    </script>
+</body>
+</html>

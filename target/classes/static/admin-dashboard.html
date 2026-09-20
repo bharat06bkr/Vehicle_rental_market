@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Vehicle Rental Marketplace</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar"></nav>
+
+    <div class="container">
+        <div style="margin-bottom: 1.5rem;">
+            <h1 class="page-title">Admin Control Panel</h1>
+            <p class="page-subtitle">Marketplace oversight, user registrations, vehicle approvals, and metrics</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div id="stat-total-users" class="num">0</div>
+                <div class="label">Total Platform Users</div>
+            </div>
+            <div class="stat-card" style="border-left-color: #f59e0b;">
+                <div id="stat-pending-owners" class="num">0</div>
+                <div class="label">Pending Owner Registrations</div>
+            </div>
+            <div class="stat-card" style="border-left-color: #ef4444;">
+                <div id="stat-pending-vehicles" class="num">0</div>
+                <div class="label">Pending Vehicle Reviews</div>
+            </div>
+            <div class="stat-card" style="border-left-color: #10b981;">
+                <div id="stat-active-rentals" class="num">0</div>
+                <div class="label">Active On-Road Rentals</div>
+            </div>
+        </div>
+
+        <div class="grid-3" style="margin-bottom: 2rem;">
+            <div class="card">
+                <h3>👥 User Verification</h3>
+                <p style="color:var(--text-muted); margin-bottom:1rem; font-size:0.9rem;">Approve new vehicle owners or manage customer access.</p>
+                <a href="admin-users.html" class="btn btn-outline">Manage Users & Owner Approvals &rarr;</a>
+            </div>
+            <div class="card">
+                <h3>🚗 Vehicle Approval System</h3>
+                <p style="color:var(--text-muted); margin-bottom:1rem; font-size:0.9rem;">Review submitted vehicle listings and inspect document details.</p>
+                <a href="admin-vehicles.html" class="btn btn-outline">Approve / Reject Vehicles &rarr;</a>
+            </div>
+            <div class="card">
+                <h3>📊 Category & Location Setup</h3>
+                <p style="color:var(--text-muted); margin-bottom:1rem; font-size:0.9rem;">Add new vehicle categories and operating cities.</p>
+                <button onclick="openCategoryModal()" class="btn btn-sm btn-primary">Add Category</button>
+                <button onclick="openLocationModal()" class="btn btn-sm btn-secondary">Add Location</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Category Modal -->
+    <div id="cat-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Vehicle Category</h3>
+                <button onclick="closeCategoryModal()" class="close-btn">&times;</button>
+            </div>
+            <form id="cat-form">
+                <div class="form-group">
+                    <label>Category Name</label>
+                    <input type="text" id="cat-name" class="form-control" placeholder="e.g. CONVERTIBLE" required>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <input type="text" id="cat-desc" class="form-control" placeholder="Open roof sports cars">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;">Save Category</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Location Modal -->
+    <div id="loc-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Location / City</h3>
+                <button onclick="closeLocationModal()" class="close-btn">&times;</button>
+            </div>
+            <form id="loc-form">
+                <div class="form-group">
+                    <label>Location Hub Name</label>
+                    <input type="text" id="loc-name" class="form-control" placeholder="e.g. Airport Hub" required>
+                </div>
+                <div class="form-group">
+                    <label>City</label>
+                    <input type="text" id="loc-city" class="form-control" placeholder="e.g. Tirupati" required>
+                </div>
+                <div class="form-group">
+                    <label>State</label>
+                    <input type="text" id="loc-state" class="form-control" placeholder="e.g. Andhra Pradesh">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;">Save Location</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/navbar.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (Auth.requireRole('ROLE_ADMIN')) {
+                loadAdminDashboard();
+            }
+        });
+
+        async function loadAdminDashboard() {
+            try {
+                const res = await API.get('/admin/dashboard');
+                if (res && res.data) {
+                    const stats = res.data;
+                    document.getElementById('stat-total-users').innerText = stats.totalUsers;
+                    document.getElementById('stat-pending-owners').innerText = stats.pendingOwners;
+                    document.getElementById('stat-pending-vehicles').innerText = stats.pendingVehicles;
+                    document.getElementById('stat-active-rentals').innerText = stats.activeRentals;
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function openCategoryModal() { document.getElementById('cat-modal').classList.add('active'); }
+        function closeCategoryModal() { document.getElementById('cat-modal').classList.remove('active'); }
+        function openLocationModal() { document.getElementById('loc-modal').classList.add('active'); }
+        function closeLocationModal() { document.getElementById('loc-modal').classList.remove('active'); }
+
+        document.getElementById('cat-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('cat-name').value.trim();
+            const description = document.getElementById('cat-desc').value.trim();
+            try {
+                const res = await API.post('/admin/categories', { name, description });
+                if (res && res.success) {
+                    showToast('Category created successfully!', 'success');
+                    closeCategoryModal();
+                }
+            } catch (err) {}
+        });
+
+        document.getElementById('loc-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('loc-name').value.trim();
+            const city = document.getElementById('loc-city').value.trim();
+            const state = document.getElementById('loc-state').value.trim();
+            try {
+                const res = await API.post('/admin/locations', { name, city, state });
+                if (res && res.success) {
+                    showToast('Location created successfully!', 'success');
+                    closeLocationModal();
+                }
+            } catch (err) {}
+        });
+    </script>
+</body>
+</html>

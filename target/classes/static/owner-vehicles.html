@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Vehicles - Owner Panel</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar"></nav>
+
+    <div class="container">
+        <div style="display:flex; justify-between; align-items:center; margin-bottom: 1.5rem;">
+            <div>
+                <h1 class="page-title">My Vehicle Listings</h1>
+                <p class="page-subtitle">Manage listings, view Admin approval status, and update rental availability</p>
+            </div>
+            <button onclick="openAddModal()" class="btn btn-primary">➕ List New Vehicle</button>
+        </div>
+
+        <div id="owner-vehicles-grid" class="grid-3">
+            <div style="grid-column: 1/-1; text-align: center; padding: 3rem;">Loading your vehicles...</div>
+        </div>
+    </div>
+
+    <!-- Add Vehicle Modal -->
+    <div id="add-modal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>List Vehicle for Rental Approval</h3>
+                <button onclick="closeAddModal()" class="close-btn">&times;</button>
+            </div>
+            <form id="vehicle-form">
+                <div class="grid-2" style="margin-bottom:0;">
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select id="v-category" class="form-control" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Location City Hub</label>
+                        <select id="v-location" class="form-control" required></select>
+                    </div>
+                </div>
+
+                <div class="grid-2" style="margin-bottom:0;">
+                    <div class="form-group">
+                        <label>Brand</label>
+                        <input type="text" id="v-brand" class="form-control" placeholder="e.g. Hyundai" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Model</label>
+                        <input type="text" id="v-model" class="form-control" placeholder="e.g. i20 Asta" required>
+                    </div>
+                </div>
+
+                <div class="grid-2" style="margin-bottom:0;">
+                    <div class="form-group">
+                        <label>Vehicle Number Plate</label>
+                        <input type="text" id="v-number" class="form-control" placeholder="e.g. TS-09-AB-1234" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Price Per Day (₹)</label>
+                        <input type="number" id="v-price" class="form-control" placeholder="e.g. 2500" required min="100">
+                    </div>
+                </div>
+
+                <div class="grid-3" style="margin-bottom:0;">
+                    <div class="form-group">
+                        <label>Manufacturing Year</label>
+                        <input type="number" id="v-year" class="form-control" placeholder="2022" value="2022">
+                    </div>
+                    <div class="form-group">
+                        <label>Fuel Type</label>
+                        <select id="v-fuel" class="form-control">
+                            <option value="PETROL">Petrol</option>
+                            <option value="DIESEL">Diesel</option>
+                            <option value="ELECTRIC">Electric</option>
+                            <option value="HYBRID">Hybrid</option>
+                            <option value="CNG">CNG</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Transmission</label>
+                        <select id="v-trans" class="form-control">
+                            <option value="MANUAL">Manual</option>
+                            <option value="AUTOMATIC">Automatic</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Image URL (Optional)</label>
+                    <input type="url" id="v-image" class="form-control" placeholder="https://example.com/car.jpg">
+                </div>
+
+                <div class="form-group">
+                    <label>Vehicle Description</label>
+                    <textarea id="v-desc" class="form-control" rows="3" placeholder="Condition, features, mileage, rules..."></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.75rem;">Submit Vehicle for Approval</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/navbar.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            if (Auth.requireRole('ROLE_OWNER')) {
+                loadOwnerVehicles();
+                loadModalSelects();
+            }
+        });
+
+        async function loadModalSelects() {
+            try {
+                const [locRes, catRes] = await Promise.all([
+                    API.get('/locations'),
+                    API.get('/categories')
+                ]);
+
+                if (locRes && locRes.data) {
+                    const locSelect = document.getElementById('v-location');
+                    locRes.data.forEach(loc => {
+                        locSelect.innerHTML += `<option value="${loc.id}">${loc.city} - ${loc.name}</option>`;
+                    });
+                }
+
+                if (catRes && catRes.data) {
+                    const catSelect = document.getElementById('v-category');
+                    catRes.data.forEach(cat => {
+                        catSelect.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
+                    });
+                }
+            } catch (err) {}
+        }
+
+        async function loadOwnerVehicles() {
+            const grid = document.getElementById('owner-vehicles-grid');
+            try {
+                const res = await API.get('/owner/vehicles');
+                if (res && res.data && res.data.length > 0) {
+                    grid.innerHTML = res.data.map(v => renderOwnerVehicleCard(v)).join('');
+                } else {
+                    grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 3rem; color: var(--text-muted);">You have not listed any vehicles yet. Click List New Vehicle above!</div>';
+                }
+            } catch (err) {}
+        }
+
+        function renderOwnerVehicleCard(v) {
+            const defaultImg = 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=600&q=80';
+            const img = v.imageUrl || defaultImg;
+
+            let rejectionBox = '';
+            if (v.approvalStatus === 'REJECTED') {
+                rejectionBox = `
+                    <div style="background:#fee2e2; border-left:3px solid #ef4444; padding:0.5rem; font-size:0.8rem; color:#991b1b; margin-top:0.5rem;">
+                        <strong>Rejection Reason:</strong> ${v.rejectionReason || 'Non-compliant documentation'}
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="vehicle-card">
+                    <img src="${img}" alt="${v.brand} ${v.model}" class="vehicle-img" onerror="this.src='${defaultImg}'">
+                    <div class="vehicle-body">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:0.4rem; gap:0.5rem; flex-wrap:wrap;">
+                            <span class="status-badge bg-${v.approvalStatus.toLowerCase()}">Admin Approval: ${v.approvalStatus}</span>
+                            <span class="status-badge bg-${v.availabilityStatus.toLowerCase()}">${v.availabilityStatus}</span>
+                        </div>
+                        <h3 class="vehicle-title">${v.brand} ${v.model}</h3>
+                        <div class="vehicle-meta">
+                            <span>No: ${v.vehicleNumber}</span>
+                            <span>📍 ${v.location ? v.location.city : ''}</span>
+                            <span>₹${v.pricePerDay}/day</span>
+                        </div>
+                        ${rejectionBox}
+                    </div>
+                </div>
+            `;
+        }
+
+        function openAddModal() { document.getElementById('add-modal').classList.add('active'); }
+        function closeAddModal() { document.getElementById('add-modal').classList.remove('active'); }
+
+        document.getElementById('vehicle-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const categoryId = parseInt(document.getElementById('v-category').value);
+            const locationId = parseInt(document.getElementById('v-location').value);
+            const brand = document.getElementById('v-brand').value.trim();
+            const model = document.getElementById('v-model').value.trim();
+            const vehicleNumber = document.getElementById('v-number').value.trim();
+            const pricePerDay = parseFloat(document.getElementById('v-price').value);
+            const manufacturingYear = parseInt(document.getElementById('v-year').value);
+            const fuelType = document.getElementById('v-fuel').value;
+            const transmission = document.getElementById('v-trans').value;
+            const imageUrl = document.getElementById('v-image').value.trim();
+            const description = document.getElementById('v-desc').value.trim();
+
+            try {
+                const res = await API.post('/owner/vehicles', {
+                    categoryId, locationId, brand, model, vehicleNumber, pricePerDay,
+                    manufacturingYear, fuelType, transmission, imageUrl, description
+                });
+
+                if (res && res.success) {
+                    showToast('Vehicle submitted for Admin approval!', 'success');
+                    closeAddModal();
+                    loadOwnerVehicles();
+                }
+            } catch (err) {}
+        });
+    </script>
+</body>
+</html>
